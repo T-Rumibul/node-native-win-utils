@@ -1,9 +1,6 @@
 
 [![License][license-src]][license-href] 
 
- [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/ryner)
-
-  
 
 #### USDT TRC20 - TYAJ3K3MZraJhWimxxeCKcJ2SYABkVsrzi
 ####  USDT TON - UQDokuYZXr4OHvfslDqUoFYcp1_F8tcjQPk_TvqSSDk7SIa7
@@ -750,9 +747,9 @@ console.log("Key up:", data.keyCode, data.keyName);
   
 
 [OpenCV License](https://github.com/opencv/opencv/blob/master/LICENSE)
-[MIT License](https://github.com/RynerNO/node-native-win-utils/blob/main/LICENSE)
+[MIT License](https://github.com/T-Rumibul/node-native-win-utils/blob/main/LICENSE)
   
 
 [license-src]: https://img.shields.io/github/license/nuxt-modules/icon.svg?style=for-the-badge&colorA=18181B&colorB=28CF8D
 
-[license-href]: https://github.com/RynerNO/node-native-win-utils/blob/main/LICENSE
+[license-href]: https://github.com/T-Rumibul/node-native-win-utils/blob/main/LICENSE
