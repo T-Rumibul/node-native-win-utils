@@ -25,7 +25,9 @@
     "template matching",
     "image",
     "blur",
-    "grayscale"
+    "grayscale",
+    "text recognition",
+    "OCR"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
