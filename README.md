@@ -1,6 +1,6 @@
 
 [![License][license-src]][license-href] 
-
+![Node-API v6 Badge](https://github.com/nodejs/abi-stable-node/blob/doc/assets/Node-API%20v6%20Badge.svg)
 
 #### USDT TRC20 - TYAJ3K3MZraJhWimxxeCKcJ2SYABkVsrzi
 ####  USDT TON - UQDokuYZXr4OHvfslDqUoFYcp1_F8tcjQPk_TvqSSDk7SIa7
