@@ -5,6 +5,7 @@ tsconfig.json
 test
 build
 src/*.ts
+dll
 
 !src/cpp/*.cpp
 !src/cpp

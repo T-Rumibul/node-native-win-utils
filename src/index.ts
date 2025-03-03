@@ -6,6 +6,7 @@ const bindings = require("node-gyp-build")(path.resolve(__dirname, ".."));
 
 import {keyCodes, KeyCodeHelper} from "./keyCodes";
 
+
 /**
  * Represents the data of a window.
  */
@@ -121,6 +122,9 @@ export type DrawRectangle = (
 ) => ImageData;
 export type GetRegion = (image: ImageData, region: ROI) => ImageData;
 
+export type TextRecognition = (trainedDataPath: string, dataLang: string, imagePath: string) => string;
+
+
 const {
   keyDownHandler,
   keyUpHandler,
@@ -138,6 +142,7 @@ const {
   bgrToGray,
   drawRectangle,
   getRegion,
+  textRecognition
 }: {
   keyDownHandler: KeyDownHandler;
   keyUpHandler: KeyUpHandler;
@@ -155,6 +160,7 @@ const {
   bgrToGray: BgrToGray;
   drawRectangle: DrawRectangle;
   getRegion: GetRegion;
+  textRecognition: TextRecognition;
 } = bindings;
 
 const rawPressKey = pressKey;
@@ -168,7 +174,7 @@ const rawPressKey = pressKey;
 function captureWindow(windowName: string, path: string): boolean {
   const buffer = captureWindowN(windowName);
   if (!buffer) return false;
-  fs.writeFileSync(path, buffer);
+  fs.writeFileSync(path, new Uint8Array(buffer));
   return true;
 }
 export interface KeyListener extends EventEmitter {
@@ -308,7 +314,7 @@ export class OpenCV {
   imwrite(path: string) {
     const buffer = imwrite(this.imageData);
     if (!buffer) return;
-    fs.writeFileSync(path, buffer);
+    fs.writeFileSync(path, new Uint8Array(buffer));
   }
 }
 function keyPress(keyCode: number, repeat?: number): Promise<boolean> {
@@ -325,6 +331,10 @@ function keyPress(keyCode: number, repeat?: number): Promise<boolean> {
         return resolve(true);
   })
 }
+
+
+
+
 export {
   keyDownHandler,
   keyUpHandler,
@@ -337,5 +347,6 @@ export {
   typeString,
   keyPress,
   rawPressKey,
-  KeyCodeHelper
+  KeyCodeHelper,
+  textRecognition
 };

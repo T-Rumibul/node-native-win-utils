@@ -23,6 +23,7 @@
                 "<!(node -p \"require('path').resolve('libs/opencv_core470.lib')\")",
                 "<!(node -p \"require('path').resolve('libs/opencv_imgcodecs470.lib')\")",
                 "<!(node -p \"require('path').resolve('libs/opencv_imgproc470.lib')\")",
+                "<!(node -p \"require('path').resolve('libs/tesseract.lib')\")",
 
             ],
             "conditions": [

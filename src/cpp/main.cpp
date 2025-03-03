@@ -5,6 +5,7 @@
 #include <keyboard.cpp>
 #include <mouse.cpp>
 #include <opencv.cpp>
+#include <tesseract.cpp>
 
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
@@ -24,6 +25,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("bgrToGray", Napi::Function::New(env, BgrToGray));
     exports.Set("drawRectangle", Napi::Function::New(env, DrawRectangle));
     exports.Set("getRegion", Napi::Function::New(env, GetRegion));
+    exports.Set("textRecognition", Napi::Function::New(env, TextRecognition));
     return exports;
 }
 
