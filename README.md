@@ -475,15 +475,15 @@ Writes the current image to a file specified by the `path`.
 |-----------------|----------------------------------------------------------------------------------------------|-------------|
 | keyDownHandler  | `callback: (keyCode: number) => void`                                                         | `void`      |
 | keyUpHandler    | `callback: (keyCode: number) => void`                                                         | `void`      |
-| getWindowData   | `windowName: string`                                                                         | `WindowData`|
+| getWindowData   | `windowName: string`                                                                          | `WindowData`|
 | captureWindow   | `windowName: string, outputPath: string`                                                      | `void`      |
 | mouseMove       | `posX: number, posY: number`                                                                  | `boolean`   |
 | mouseClick      | `button?: "left" \| "middle" \| "right"`                                                      | `boolean`   |
-| mouseDrag       | `startX: number, startY: number, endX: number, endY: number, speed?: number`                | `boolean`   |
+| mouseDrag       | `startX: number, startY: number, endX: number, endY: number, speed?: number`                  | `boolean`   |
 | typeString      | `stringToType: string, delay?: number`                                                        | `boolean`   |
-| captureWindowN  | `windowName: string`                                                                         | `Buffer`    |
-| keyPress        | `keyCode: number, repeat?: number`                                                           | `boolean`   |
-
+| captureWindowN  | `windowName: string`                                                                          | `Buffer`    |
+| keyPress        | `keyCode: number, repeat?: number`                                                            | `boolean`   |
+| textRecognition | `trainedDataPath: string, dataLang: string, imagePath: string`                                | `string`   |
 
   
 
@@ -493,7 +493,10 @@ Writes the current image to a file specified by the `path`.
 
 Here are some examples of using the package:
 
-  
+```javascript
+console.log(textRecognition(path.join(__dirname, 'traineddata'), 'eng', path.join(__dirname, 'images', '1.jpg'))) // ---> <recognized text>
+
+```
 
 ```javascript
 
