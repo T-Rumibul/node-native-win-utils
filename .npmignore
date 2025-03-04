@@ -6,6 +6,10 @@ test
 build
 src/*.ts
 dll
+.tap
+buildHelpers
+libs
+include
 
 !src/cpp/*.cpp
 !src/cpp
