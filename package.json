@@ -29,12 +29,17 @@
     "text recognition",
     "OCR"
   ],
-  "main": "dist/index.js",
+  "exports": {
+    "require": "./dist/index.cjs",
+    "import": "./dist/index.mjs"
+  },
+  "main": "dist/index.cjs",
   "types": "dist/index.d.ts",
   "gypfile": true,
   "scripts": {
     "install": "node-gyp-build",
-    "build": "node-gyp clean && npx prebuildify --napi && npx tsc && node ./dllCopy.js",
+    "build": "node-gyp clean && npx prebuildify --napi && node ./buildHelpers/dllCopy.js && npm run buildts",
+    "buildts": "node ./buildHelpers/cjsCompatBuild.js",
     "test": "jest"
   },
   "dependencies": {

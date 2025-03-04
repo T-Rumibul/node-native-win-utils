@@ -1,7 +1,6 @@
 {
+  "extends":"./node22.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "commonjs",
     "removeComments": false,
     "declaration": true,
     "baseUrl": "./",
@@ -9,12 +8,9 @@
       "*": ["./src/*"]
     },
     "outDir": "./dist",
-    "esModuleInterop": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

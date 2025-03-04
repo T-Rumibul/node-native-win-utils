@@ -483,7 +483,7 @@ Writes the current image to a file specified by the `path`.
 | typeString      | `stringToType: string, delay?: number`                                                        | `boolean`   |
 | captureWindowN  | `windowName: string`                                                                          | `Buffer`    |
 | keyPress        | `keyCode: number, repeat?: number`                                                            | `boolean`   |
-| textRecognition | `trainedDataPath: string, dataLang: string, imagePath: string`                                | `string`   |
+| textRecognition | `trainedDataPath: string, dataLang: string, imagePath: string`                                | `string`    |
 
   
 

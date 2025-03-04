@@ -2,9 +2,16 @@ import EventEmitter = require("events");
 import path from "path";
 import fs from "fs";
 
-const bindings = require("node-gyp-build")(path.resolve(__dirname, ".."));
 
-import {keyCodes, KeyCodeHelper} from "./keyCodes";
+// @ts-ignore
+import nodeGypBuild = require('node-gyp-build');
+
+import {keyCodes, KeyCodeHelper} from "./keyCodes.mjs";
+import { __dirnameLocal } from "./dirnameLocal.mjs";
+
+const bindings = nodeGypBuild(path.resolve(__dirnameLocal, ".."));
+
+
 
 
 /**
