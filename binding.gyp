@@ -17,6 +17,8 @@
             "libraries": [
                 "dwmapi.lib",
                 "windowsapp.lib",
+                "-lgdi32", 
+                "-lgdiplus",
                 "<!(node -p \"require('path').resolve('libs/libjpeg-turbo.lib')\")",
                 "<!(node -p \"require('path').resolve('libs/libpng.lib')\")",
                 "<!(node -p \"require('path').resolve('libs/zlib.lib')\")",
