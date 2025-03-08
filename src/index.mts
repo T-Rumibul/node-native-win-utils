@@ -213,11 +213,19 @@ function captureScreenToFile(path: string): Promise<boolean> {
 
 
 
+/**
+ * Interface representing a private keyboard listener that extends EventEmitter.
+ * It declares event handlers for native keyboard events, which are forwarded from
+ * the C++ bindings using thread-safe callbacks.
+ */
 interface KeyboardListenerPrivate extends EventEmitter {
   /**
-   * Event: Fires when a key is pressed down.
+   * Registers an event handler for the 'keyDown' event.
+   * This event is fired when a key is pressed down. The C++ native binding calls
+   * this callback using a thread-safe mechanism (via Napi::ThreadSafeFunction).
    * @param event - The event name ('keyDown').
-   * @param callback - The callback function to handle the event.
+   * @param callback - Function invoked with an object containing the keyCode and keyName.
+   * @returns The current instance for method chaining.
    */
   on(
     event: "keyDown",
@@ -225,9 +233,12 @@ interface KeyboardListenerPrivate extends EventEmitter {
   ): this;
 
   /**
-   * Event: Fires when a key is released.
+   * Registers an event handler for the 'keyUp' event.
+   * This event is fired when a key is released. The underlying C++ code safely
+   * invokes this callback from a background thread using a thread-safe function.
    * @param event - The event name ('keyUp').
-   * @param callback - The callback function to handle the event.
+   * @param callback - Function invoked with an object containing the keyCode and keyName.
+   * @returns The current instance for method chaining.
    */
   on(
     event: "keyUp",
@@ -237,44 +248,82 @@ interface KeyboardListenerPrivate extends EventEmitter {
 
 
 /**
- * Represents a class to listen to keyboard events.
+ * Class that implements a private keyboard listener.
+ * This class leverages native C++ bindings to hook into system keyboard events.
+ * The C++ layer uses global ThreadSafeFunction objects to safely dispatch events
+ * (using a dedicated monitoring thread, mutexes, and atomic flags) to JavaScript.
  * @extends EventEmitter
  */
 class KeyboardListenerPrivate extends EventEmitter {
 
+  /**
+   * Constructs the keyboard listener and sets up native callbacks.
+   * The callbacks (set via setKeyDownCallback and setKeyUpCallback) are defined in the
+   * C++ binding layer. They are responsible for invoking these JavaScript callbacks
+   * in a thread-safe manner once a key event is detected.
+   */
   constructor() {
-    super()
+    super();
+    // Set the callback for key down events.
     setKeyDownCallback((keyCode: number) => {
+      // Look up the human-readable key name from a mapping.
       const keyName: string | undefined = keyCodes.get(keyCode.toString());
+      // Emit the 'keyDown' event to all registered JavaScript listeners.
       this.emit("keyDown", {
         keyCode,
         keyName,
       });
     });
+    // Set the callback for key up events.
     setKeyUpCallback((keyCode: number) => {
+      // Look up the human-readable key name from a mapping.
       const keyName: string | undefined = keyCodes.get(keyCode.toString());
+      // Emit the 'keyUp' event to all registered JavaScript listeners.
       this.emit("keyUp", {
         keyCode,
         keyName,
       });
     });
   }
-    
-  }
+}
 
+
+/**
+ * A singleton manager for the KeyboardListenerPrivate instance.
+ * This class ensures that only one native keyboard listener is active at any time.
+ * When the listener is destroyed, it calls unsetKeyDownCallback and unsetKeyUpCallback
+ * to clean up native resources, mirroring the cleanup logic in the C++ bindings.
+ */
 class KeyboardListener {
+  /**
+   * Holds the singleton instance of KeyboardListenerPrivate.
+   */
   private static listenerInstance: KeyboardListenerPrivate | null = null;
-  static listener() {
-        if(!this.listenerInstance) this.listenerInstance = new KeyboardListenerPrivate();
-        return this.listenerInstance
 
+  /**
+   * Returns the singleton instance of KeyboardListenerPrivate. If not already created,
+   * it instantiates a new instance and sets up the native callbacks.
+   * @returns The active KeyboardListenerPrivate instance.
+   */
+  static listener() {
+    if (!this.listenerInstance) {
+      this.listenerInstance = new KeyboardListenerPrivate();
+    }
+    return this.listenerInstance;
   }
+
+  /**
+   * Destroys the current KeyboardListenerPrivate instance and cleans up native callbacks.
+   * This method calls unsetKeyDownCallback and unsetKeyUpCallback to release any
+   * native resources (such as the global ThreadSafeFunctions) and stops the monitoring thread.
+   */
   static destroy() {
-    this.listenerInstance = null
-    unsetKeyDownCallback()
-    unsetKeyUpCallback()
+    this.listenerInstance = null;
+    unsetKeyDownCallback();
+    unsetKeyUpCallback();
   }
 }
+
 
 /**
  * Represents the OpenCV class that provides image processing functionality.
