@@ -234,6 +234,52 @@ Napi::Value BgrToGray(const Napi::CallbackInfo &info)
     return result;
 }
 
+Napi::Value EqualizeHist(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsObject())
+    {
+        Napi::TypeError::New(env, "Invalid arguments. Expected: (object)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Object srcObj = info[0].As<Napi::Object>();
+
+    if (!srcObj.Has("data") || !srcObj.Has("width") || !srcObj.Has("height"))
+    {
+        Napi::TypeError::New(env, "Invalid image data object. Expected properties: 'data', 'width', 'height'").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    if (!srcObj.Get("data").IsTypedArray())
+    {
+        Napi::TypeError::New(env, "TypedArray expected for 'data' property").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    int width = srcObj.Get("width").ToNumber().Int32Value();
+    int height = srcObj.Get("height").ToNumber().Int32Value();
+
+    cv::Mat src(height, width, CV_8UC1, srcObj.Get("data").As<Napi::TypedArray>().ArrayBuffer().Data());
+    cv::Mat dst;
+
+    cv::equalizeHist(src, dst);
+
+    Napi::Object result = Napi::Object::New(env);
+    size_t totalBytes = dst.total() * dst.elemSize();
+    Napi::ArrayBuffer arrayBuffer = Napi::ArrayBuffer::New(env, totalBytes);
+    Napi::Uint8Array uint8Array = Napi::Uint8Array::New(env, totalBytes, arrayBuffer, 0);
+
+    memcpy(uint8Array.Data(), dst.data, totalBytes);
+    result.Set("width", width);
+    result.Set("height", height);
+    result.Set("data", uint8Array);
+    
+    return result;
+}
+
+
 Napi::Value Blur(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();

@@ -69,6 +69,20 @@ t.test("OpenCV: bgrToGray returns a new instance", async (t) => {
   t.end();
 });
 
+t.test("OpenCV: equalizeHist returns a new instance", async (t) => {
+  const dummyImage = {
+    width: 50,
+    height: 50,
+    data: new Uint8Array(50 * 50 * 3),
+  };
+  const opencv = new OpenCV(dummyImage);
+  const gray = opencv.bgrToGray().equalizeHist();
+  t.ok(gray instanceof OpenCV, "equalizeHist() should return an OpenCV instance");
+  t.end();
+});
+
+
+
 t.test("OpenCV: drawRectangle returns a new instance", async (t) => {
   const dummyImage = {
     width: 80,

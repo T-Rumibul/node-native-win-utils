@@ -26,6 +26,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("matchTemplate", Napi::Function::New(env, MatchTemplate));
     exports.Set("blur", Napi::Function::New(env, Blur));
     exports.Set("bgrToGray", Napi::Function::New(env, BgrToGray));
+    exports.Set("equalizeHist", Napi::Function::New(env, EqualizeHist));
     exports.Set("drawRectangle", Napi::Function::New(env, DrawRectangle));
     exports.Set("getRegion", Napi::Function::New(env, GetRegion));
     exports.Set("textRecognition", Napi::Function::New(env, TextRecognition));

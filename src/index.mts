@@ -120,7 +120,7 @@ export type Blur = (
   sizeY: number
 ) => ImageData;
 export type BgrToGray = (image: ImageData) => ImageData;
-
+export type EqualizeHist = (image: ImageData) => ImageData;
 export type DrawRectangle = (
   image: ImageData,
   start: Point,
@@ -153,7 +153,8 @@ const {
   bgrToGray,
   drawRectangle,
   getRegion,
-  textRecognition
+  textRecognition,
+  equalizeHist
 }: {
   setKeyDownCallback: SetKeyCallback;
   setKeyUpCallback: SetKeyCallback;
@@ -175,6 +176,7 @@ const {
   getRegion: GetRegion;
   textRecognition: TextRecognition;
   captureScreenAsync: CaptureScreenAsync;
+  equalizeHist: EqualizeHist
 } = bindings;
 
 const rawPressKey = pressKey;
@@ -384,6 +386,15 @@ class OpenCV {
   bgrToGray() {
     return new OpenCV(bgrToGray(this.imageData));
   }
+
+ /**
+   * Equalize the Histogram by using the OpenCV function cv::equalizeHist.
+   * @returns A new OpenCV instance with the equalized image data.
+   */
+ equalizeHist() {
+  return new OpenCV(equalizeHist(this.imageData));
+}
+
 
   /**
    * Draws a rectangle on the image.
