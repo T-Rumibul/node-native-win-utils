@@ -15,9 +15,34 @@
 #include <dwmapi.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <vector>
+#include <stdexcept>
+#include <gdiplus.h>
+#include <cstdlib>
 
-#pragma comment(lib, "Dwmapi.lib")
-#pragma comment(lib, "windowsapp.lib")
+#pragma comment (lib, "Gdiplus.lib")
+
+using namespace Gdiplus;
+using namespace Napi;
+// Global GDI+ initialization token
+ULONG_PTR gdiplusToken = 0;
+
+// RAII wrapper for GDI+ initialization
+class GdiPlusInitializer {
+public:
+    GdiPlusInitializer() {
+        GdiplusStartupInput startupInput;
+        GdiplusStartup(&gdiplusToken, &startupInput, NULL);
+    }
+
+    ~GdiPlusInitializer() {
+        GdiplusShutdown(gdiplusToken);
+    }
+};
+
+
+
+
 
 Napi::Value CaptureWindow(const Napi::CallbackInfo &info)
 {
@@ -171,3 +196,150 @@ Napi::Value CaptureWindow(const Napi::CallbackInfo &info)
 
     return resultBuffer;
 }
+
+
+
+class ScreenCaptureWorker : public AsyncWorker {
+  public:
+      ScreenCaptureWorker(Napi::Env env, Promise::Deferred deferred)
+          : AsyncWorker(env), deferred(deferred), buffer(nullptr), bufferSize(0) {}
+  
+      ~ScreenCaptureWorker() {
+          if (buffer) delete[] buffer;
+      }
+  
+      void Execute() override {
+        HDC hdcScreen = NULL;
+        HDC hdcMem = NULL;
+        HBITMAP hBitmap = NULL;
+        IStream* stream = NULL;
+
+        try {
+            // Step 1: Capture screen using GDI
+            hdcScreen = GetDC(NULL);
+            if (!hdcScreen) throw "Failed to get screen DC";
+
+            int width = GetSystemMetrics(SM_CXSCREEN);
+            int height = GetSystemMetrics(SM_CYSCREEN);
+
+            hdcMem = CreateCompatibleDC(hdcScreen);
+            if (!hdcMem) throw "Failed to create compatible DC";
+
+            hBitmap = CreateCompatibleBitmap(hdcScreen, width, height);
+            if (!hBitmap) throw "Failed to create bitmap";
+
+            SelectObject(hdcMem, hBitmap);
+            if (!BitBlt(hdcMem, 0, 0, width, height, hdcScreen, 0, 0, SRCCOPY)) {
+                throw "Failed to copy screen content";
+            }
+
+            // Step 2: Convert bitmap to PNG using GDI+
+            Bitmap bitmap(hBitmap, NULL);
+            if (bitmap.GetLastStatus() != Ok) {
+                throw "Failed to create GDI+ bitmap";
+            }
+
+            // Create in-memory stream to store PNG
+            if (CreateStreamOnHGlobal(NULL, TRUE, &stream) != S_OK) {
+                throw "Failed to create stream";
+            }
+
+            CLSID pngClsid;
+            if (GetEncoderClsid(L"image/png", &pngClsid) == -1) {
+                throw "Failed to get PNG encoder";
+            }
+
+            if (bitmap.Save(stream, &pngClsid, NULL) != Ok) {
+                throw "Failed to save PNG to stream";
+            }
+
+            // Get PNG data from stream
+            STATSTG stat;
+            stream->Stat(&stat, STATFLAG_NONAME);
+            bufferSize = static_cast<DWORD>(stat.cbSize.QuadPart);
+            
+            HGLOBAL hGlobal = NULL;
+            GetHGlobalFromStream(stream, &hGlobal);
+            buffer = static_cast<BYTE*>(GlobalLock(hGlobal));
+            if (!buffer) throw "Failed to lock stream memory";
+
+            // Copy to local buffer as stream will be released
+            BYTE* tempBuffer = new BYTE[bufferSize];
+            memcpy(tempBuffer, buffer, bufferSize);
+            buffer = tempBuffer;
+
+            // Cleanup
+            GlobalUnlock(hGlobal);
+            stream->Release();
+            DeleteObject(hBitmap);
+            DeleteDC(hdcMem);
+            ReleaseDC(NULL, hdcScreen);
+        }
+        catch (const char* error) {
+            SetError(error);
+        }
+        catch (...) {
+            SetError("Unknown error occurred during screen capture");
+        }
+
+        // Cleanup in case of exceptions
+        if (stream) stream->Release();
+        if (hBitmap) DeleteObject(hBitmap);
+        if (hdcMem) DeleteDC(hdcMem);
+        if (hdcScreen) ReleaseDC(NULL, hdcScreen);
+      }
+  
+      void OnOK() override {
+          Buffer<BYTE> result = Buffer<BYTE>::Copy(Env(), buffer, bufferSize);
+          deferred.Resolve(result);
+      }
+  
+      void OnError(const Napi::Error& e) override {
+          deferred.Reject(e.Value());
+      }
+  
+  private:
+      Promise::Deferred deferred;
+      BYTE* buffer;
+      DWORD bufferSize;
+  
+      int GetEncoderClsid(const WCHAR* format, CLSID* pClsid) {
+          UINT numEncoders = 0;
+          UINT size = 0;
+  
+          if (GetImageEncodersSize(&numEncoders, &size) != Ok || size == 0)
+              return -1;
+  
+          ImageCodecInfo* pImageCodecInfo = (ImageCodecInfo*)malloc(size);
+          if (!pImageCodecInfo) return -1;
+  
+          if (GetImageEncoders(numEncoders, size, pImageCodecInfo) != Ok) {
+              free(pImageCodecInfo);
+              return -1;
+          }
+  
+          for (UINT i = 0; i < numEncoders; i++) {
+              if (wcscmp(pImageCodecInfo[i].MimeType, format) == 0) {
+                  *pClsid = pImageCodecInfo[i].Clsid;
+                  free(pImageCodecInfo);
+                  return i;
+              }
+          }
+  
+          free(pImageCodecInfo);
+          return -1;
+      }
+  };
+  
+  Value CaptureScreenAsync(const CallbackInfo& info) {
+    Env env = info.Env();
+    Promise::Deferred deferred = Promise::Deferred::New(env);
+    ScreenCaptureWorker* worker = new ScreenCaptureWorker(env, deferred);
+    worker->Queue();
+    return deferred.Promise();
+}
+
+
+
+
+

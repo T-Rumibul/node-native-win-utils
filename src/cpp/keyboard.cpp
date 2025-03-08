@@ -2,166 +2,167 @@
 #include <Windows.h>
 #include <thread>
 #include <iostream>
+#include <unordered_set>
+#include <mutex>
+#include <atomic>
 
-// Global variable to store the JavaScript callback function
+// Global variables for JavaScript callback functions
 Napi::ThreadSafeFunction globalJsCallbackKeyDown;
 Napi::ThreadSafeFunction globalJsCallbackKeyUp;
 
-// Global variable to store the previous key state
-bool isKeyPressed = false;
-bool handleKeyUp = false;
-bool handleKeyDown = false;
-bool monitorThreadRunning = false;
-int previousKeyState;
-LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam)
-{
-  if (nCode >= 0)
-  {
-    if (wParam == WM_KEYDOWN)
-    {
-      KBDLLHOOKSTRUCT *kbdStruct = (KBDLLHOOKSTRUCT *)lParam;
-      int keyCode = kbdStruct->vkCode;
+// Thread-safe tracking of pressed keys
+std::mutex pressedKeysMutex;
+std::unordered_set<int> pressedKeys;
 
-      // Handle the keyCode here or call your JavaScript callback
-      // std::cout << "Key Code: " << keyCode << std::endl;
+// Thread management
+std::atomic<bool> handleKeyDown(false);
+std::atomic<bool> handleKeyUp(false);
+std::atomic<bool> monitorThreadRunning(false);
+DWORD monitorThreadId = 0;
 
-      if (keyCode != previousKeyState || !isKeyPressed)
-      {
-        isKeyPressed = true;
-        previousKeyState = keyCode;
-        if (handleKeyDown)
-        {
-          int *keyCodeCopy = new int(keyCode); // Create a copy of the keyCode value
 
-          napi_status status = globalJsCallbackKeyDown.BlockingCall(
-              keyCodeCopy,
-              [](Napi::Env env, Napi::Function jsCallback, int *keyCodePtr)
-              {
-                Napi::HandleScope scope(env);
-                int keyCode = *keyCodePtr;
-                jsCallback.Call({Napi::Number::New(env, keyCode)});
-                delete keyCodePtr; // Clean up the dynamically allocated keyCode copy
-              });
-
-          if (status != napi_ok)
-          {
-            // Handle the error
-          }
-        }
-      }
+// Environment Cleanup Hook
+void CleanupHook() {
+    handleKeyDown = false;
+    handleKeyUp = false;
+    if(globalJsCallbackKeyDown) {
+        globalJsCallbackKeyDown.Release();
     }
-    else if (wParam == WM_KEYUP)
-    {
-      KBDLLHOOKSTRUCT *kbdStruct = (KBDLLHOOKSTRUCT *)lParam;
-      int keyCode = kbdStruct->vkCode;
-
-      if (keyCode == previousKeyState)
-      {
-        isKeyPressed = false;
-        if (handleKeyUp)
-        {
-          int *keyCodeCopy = new int(keyCode); // Create a copy of the keyCode value
-          napi_status status = globalJsCallbackKeyUp.BlockingCall(
-              keyCodeCopy,
-              [](Napi::Env env, Napi::Function jsCallback, int *keyCodePtr)
-              {
-                Napi::HandleScope scope(env);
-                int keyCode = *keyCodePtr;
-                jsCallback.Call({Napi::Number::New(env, keyCode)});
-                delete keyCodePtr; // Clean up the dynamically allocated keyCode copy
-              });
-
-          if (status != napi_ok)
-          {
-            // Handle the error
-          }
-        }
-      }
+    if(globalJsCallbackKeyUp) {
+        globalJsCallbackKeyUp.Release();
     }
-  }
-
-  return CallNextHookEx(NULL, nCode, wParam, lParam);
+    if (monitorThreadRunning) {
+        PostThreadMessage(monitorThreadId, WM_QUIT, 0, 0);
+        
+    }
 }
 
-// Function to monitor keyboard events
-void MonitorKeyboardEvents()
-{
-  HHOOK keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardHookProc, NULL, 0);
-  if (keyboardHook == NULL)
-  {
-    // Error setting hook
-    return;
-  }
 
-  // Main loop to process keyboard events
-  MSG message;
-  while (GetMessage(&message, NULL, 0, 0) > 0)
-  {
-    TranslateMessage(&message);
-    DispatchMessage(&message);
-  }
+LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode >= 0) {
+        KBDLLHOOKSTRUCT* kbdStruct = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
+        int keyCode = kbdStruct->vkCode;
 
-  UnhookWindowsHookEx(keyboardHook);
+        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+            std::lock_guard<std::mutex> lock(pressedKeysMutex);
+            if (pressedKeys.insert(keyCode).second) {
+                if (handleKeyDown) {
+                    // Allocate copy on heap for thread-safe transfer
+                    int* keyCopy = new int(keyCode);
+                    globalJsCallbackKeyDown.BlockingCall(keyCopy,
+                        [](Napi::Env env, Napi::Function jsCallback, int* keyCode) {
+                            jsCallback.Call({Napi::Number::New(env, *keyCode)});
+                            delete keyCode; // Clean up allocated memory
+                        });
+                }
+            }
+        } 
+        else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+            std::lock_guard<std::mutex> lock(pressedKeysMutex);
+            if (pressedKeys.erase(keyCode)) {
+                if (handleKeyUp) {
+                    // Allocate copy on heap for thread-safe transfer
+                    int* keyCopy = new int(keyCode);
+                    globalJsCallbackKeyUp.BlockingCall(keyCopy,
+                        [](Napi::Env env, Napi::Function jsCallback, int* keyCode) {
+                            jsCallback.Call({Napi::Number::New(env, *keyCode)});
+                            delete keyCode; // Clean up allocated memory
+                        });
+                }
+            }
+        }
+    }
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-// Function called from JavaScript to set the callback function
-Napi::Value SetKeyDownCallback(const Napi::CallbackInfo &info)
-{
-  Napi::Env env = info.Env();
+void MonitorKeyboardEvents() {
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
-  // Get the callback function from the arguments
-  Napi::Function jsCallback = info[0].As<Napi::Function>();
+    HHOOK keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardHookProc, NULL, 0);
+    if (!keyboardHook) {
+        CoUninitialize();
+        monitorThreadRunning = false;
+        return;
+    }
 
-  // Create a ThreadSafeFunction with the JavaScript callback
-  globalJsCallbackKeyDown = Napi::ThreadSafeFunction::New(
-      env,
-      jsCallback,
-      "KeyDownCallback",
-      0,
-      1,
-      [](Napi::Env)
-      {
-        // Finalizer callback (optional)
-      });
-  handleKeyDown = true;
-  if (!monitorThreadRunning)
-  {
-    std::thread monitorThread(MonitorKeyboardEvents);
-    monitorThread.detach();
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
 
-    monitorThreadRunning = true;
-  }
-
-  return env.Undefined();
+    UnhookWindowsHookEx(keyboardHook);
+    CoUninitialize();
+    monitorThreadRunning = false;
+    monitorThreadId = 0;
 }
 
-// Function called from JavaScript to set the callback function
-Napi::Value SetKeyUpCallback(const Napi::CallbackInfo &info)
-{
-  Napi::Env env = info.Env();
+Napi::Value SetKeyDownCallback(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    Napi::Function jsCallback = info[0].As<Napi::Function>();
 
-  // Get the callback function from the arguments
-  Napi::Function jsCallback = info[0].As<Napi::Function>();
+       // Release existing callback
+    if (globalJsCallbackKeyDown) {
+        globalJsCallbackKeyDown.Release();
+    }
+    globalJsCallbackKeyDown = Napi::ThreadSafeFunction::New(
+        env, jsCallback, "KeyDownCallback", 0, 1);
+    handleKeyDown = true;
 
-  // Create a ThreadSafeFunction with the JavaScript callback
-  globalJsCallbackKeyUp = Napi::ThreadSafeFunction::New(
-      env,
-      jsCallback,
-      "KeyUpCallback",
-      0,
-      1,
-      [](Napi::Env)
-      {
-        // Finalizer callback (optional)
-      });
-  handleKeyUp = true;
-  if (!monitorThreadRunning)
-  {
-    std::thread monitorThread(MonitorKeyboardEvents);
-    monitorThread.detach();
-    monitorThreadRunning = true;
-  }
-  return env.Undefined();
+    if (!monitorThreadRunning.exchange(true)) {
+        std::thread monitorThread(MonitorKeyboardEvents);
+        monitorThreadId = GetThreadId(monitorThread.native_handle());
+        monitorThread.detach();
+    }
+
+    return env.Undefined();
+}
+
+Napi::Value SetKeyUpCallback(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    Napi::Function jsCallback = info[0].As<Napi::Function>();
+    
+
+       // Release existing callback
+    if (globalJsCallbackKeyUp) {
+        globalJsCallbackKeyUp.Release();
+    }
+
+    globalJsCallbackKeyUp = Napi::ThreadSafeFunction::New(
+        env, jsCallback, "KeyUpCallback", 0, 1);
+    handleKeyUp = true;
+
+    if (!monitorThreadRunning.exchange(true)) {
+        std::thread monitorThread(MonitorKeyboardEvents);
+        monitorThreadId = GetThreadId(monitorThread.native_handle());
+        monitorThread.detach();
+    }
+
+    return env.Undefined();
+}
+
+Napi::Value UnsetKeyDownCallback(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    handleKeyDown = false;
+    globalJsCallbackKeyDown.Release();
+
+    if (!handleKeyUp && monitorThreadRunning) {
+        PostThreadMessage(monitorThreadId, WM_QUIT, 0, 0);
+    }
+
+    return env.Undefined();
+}
+
+Napi::Value UnsetKeyUpCallback(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    handleKeyUp = false;
+    globalJsCallbackKeyUp.Release();
+
+    if (!handleKeyDown && monitorThreadRunning) {
+        PostThreadMessage(monitorThreadId, WM_QUIT, 0, 0);
+    }
+
+    return env.Undefined();
 }
 
 Napi::Value TypeString(const Napi::CallbackInfo &info) {

@@ -1,5 +1,5 @@
-import EventEmitter = require("events");
-import path from "path";
+import EventEmitter from 'events'
+import path  from "path";
 import fs from "fs";
 
 
@@ -48,16 +48,17 @@ export type GetWindowData = (windowName: string) => WindowData;
 export type CaptureWindow = (windowName: string) => Buffer;
 
 /**
- * The handler to listen to key-down events.
+ * The handler to listen to key-events.
  * @param callback - The callback function to handle key-down events.
  */
-export type KeyDownHandler = (callback: (keyCode: number) => void) => void;
+export type SetKeyCallback = (callback: (keyCode: number) => void) => void;
 
 /**
- * The handler to listen to key-up events.
- * @param callback - The callback function to handle key-up events.
+ * The handler to stop thread listening to key-events.
+ * @param callback - The callback function to handle key-down events.
  */
-export type KeyUpHandler = (callback: (keyCode: number) => void) => void;
+export type UnsetKeyCallback = () => void;
+
 
 /**
  * Function type for moving the mouse.
@@ -130,13 +131,16 @@ export type DrawRectangle = (
 export type GetRegion = (image: ImageData, region: ROI) => ImageData;
 
 export type TextRecognition = (trainedDataPath: string, dataLang: string, imagePath: string) => string;
-
+export type CaptureScreenAsync = () => Promise<Buffer>;
 
 const {
-  keyDownHandler,
-  keyUpHandler,
+  setKeyDownCallback,
+  setKeyUpCallback,
+  unsetKeyDownCallback,
+  unsetKeyUpCallback,
   getWindowData,
   captureWindowN,
+  captureScreenAsync,
   mouseMove,
   mouseClick,
   mouseDrag,
@@ -151,8 +155,10 @@ const {
   getRegion,
   textRecognition
 }: {
-  keyDownHandler: KeyDownHandler;
-  keyUpHandler: KeyUpHandler;
+  setKeyDownCallback: SetKeyCallback;
+  setKeyUpCallback: SetKeyCallback;
+  unsetKeyDownCallback: UnsetKeyCallback;
+  unsetKeyUpCallback: UnsetKeyCallback;
   getWindowData: GetWindowData;
   captureWindowN: CaptureWindow;
   mouseMove: MouseMove;
@@ -168,6 +174,7 @@ const {
   drawRectangle: DrawRectangle;
   getRegion: GetRegion;
   textRecognition: TextRecognition;
+  captureScreenAsync: CaptureScreenAsync;
 } = bindings;
 
 const rawPressKey = pressKey;
@@ -184,7 +191,29 @@ function captureWindow(windowName: string, path: string): boolean {
   fs.writeFileSync(path, new Uint8Array(buffer));
   return true;
 }
-export interface KeyListener extends EventEmitter {
+
+
+/**
+ * Captures a screen and saves it to a file.
+ * @param path - The file path to save the captured image.
+ * @returns True if the capture and save operation is successful, otherwise false.
+ */
+function captureScreenToFile(path: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+  captureScreenAsync().then((buffer) => {
+    fs.writeFileSync(path, new Uint8Array(buffer))
+    resolve(true)
+  }).catch((err => {
+    reject(err)
+  }));
+  
+  
+})
+}
+
+
+
+interface KeyboardListenerPrivate extends EventEmitter {
   /**
    * Event: Fires when a key is pressed down.
    * @param event - The event name ('keyDown').
@@ -206,22 +235,23 @@ export interface KeyListener extends EventEmitter {
   ): this;
 }
 
+
 /**
  * Represents a class to listen to keyboard events.
  * @extends EventEmitter
  */
-export class KeyListener extends EventEmitter {
-  constructor() {
-    super();
+class KeyboardListenerPrivate extends EventEmitter {
 
-    keyDownHandler((keyCode: number) => {
+  constructor() {
+    super()
+    setKeyDownCallback((keyCode: number) => {
       const keyName: string | undefined = keyCodes.get(keyCode.toString());
       this.emit("keyDown", {
         keyCode,
         keyName,
       });
     });
-    keyUpHandler((keyCode: number) => {
+    setKeyUpCallback((keyCode: number) => {
       const keyName: string | undefined = keyCodes.get(keyCode.toString());
       this.emit("keyUp", {
         keyCode,
@@ -229,12 +259,27 @@ export class KeyListener extends EventEmitter {
       });
     });
   }
+    
+  }
+
+class KeyboardListener {
+  private static listenerInstance: KeyboardListenerPrivate | null = null;
+  static listener() {
+        if(!this.listenerInstance) this.listenerInstance = new KeyboardListenerPrivate();
+        return this.listenerInstance
+
+  }
+  static destroy() {
+    this.listenerInstance = null
+    unsetKeyDownCallback()
+    unsetKeyUpCallback()
+  }
 }
 
 /**
  * Represents the OpenCV class that provides image processing functionality.
  */
-export class OpenCV {
+class OpenCV {
   imageData: ImageData;
 
   /**
@@ -331,7 +376,7 @@ function keyPress(keyCode: number, repeat?: number): Promise<boolean> {
           if(!result) reject('Something went wrong');
           return resolve(true);
         }
-        for(let i = 0; i < repeat; i++) {
+        for(let i = 0; i <= repeat; i++) {
           let result = rawPressKey(keyCode);
           if(!result) reject('Something went wrong');
         }
@@ -343,8 +388,6 @@ function keyPress(keyCode: number, repeat?: number): Promise<boolean> {
 
 
 export {
-  keyDownHandler,
-  keyUpHandler,
   getWindowData,
   captureWindow,
   captureWindowN,
@@ -355,5 +398,8 @@ export {
   keyPress,
   rawPressKey,
   KeyCodeHelper,
-  textRecognition
+  textRecognition,
+  captureScreenToFile,
+  KeyboardListener,
+  OpenCV
 };
