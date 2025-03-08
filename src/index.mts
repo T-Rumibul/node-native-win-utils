@@ -449,6 +449,7 @@ export {
   KeyCodeHelper,
   textRecognition,
   captureScreenToFile,
+  captureScreenAsync,
   KeyboardListener,
   OpenCV
 };
