@@ -24,13 +24,6 @@ I did it for myself because I didn't feel like dealing with libraries like 'node
 This package is a native addon for Node.js that allows you to perform various utility operations on Windows systems. It includes key event listeners, window data retrieval, window screenshot capture functionality, mouse movement, mouse click, mouse drag, and typing functionality, also I included precompiled libs of OpenCV(core, imgcodecs, imgproc)
 
   
-
-# VESRION 1.3.3
-
-Added a new function to simulate button press and release (`keyPress`), introduced an enumeration `KeyCodesHelper` with the most common key codes, and fixed a bug where the `typeString` function was not working with languages other than English.
-
-  
-
 # Installation
 
   
