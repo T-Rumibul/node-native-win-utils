@@ -158,11 +158,11 @@ Napi::Value MatchTemplate(const Napi::CallbackInfo &info)
     cv::Mat result;
     if (mask.empty())
     {
-        cv::matchTemplate(src, templ, result, cv::TM_CCOEFF_NORMED);
+        cv::matchTemplate(src, templ, result, method);
     }
     else
     {
-        cv::matchTemplate(src, templ, result, cv::TM_CCOEFF_NORMED, mask);
+        cv::matchTemplate(src, templ, result, method, mask);
     }
 
     double minVal, maxVal;
