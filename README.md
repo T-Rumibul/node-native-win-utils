@@ -67,9 +67,7 @@ To use the package, import the necessary functions, types, and classes:
 
 import {
 
-keyDownHandler,
-
-keyUpHandler,
+KeyboardListener
 
 getWindowData,
 
@@ -93,38 +91,30 @@ OpenCV,
 
   
 
-## Key Event Listeners
+## Keyboard Event Listener
 
   
 
-The package provides `keyDownHandler` and `keyUpHandler` functions, which allow you to register callbacks for key down and key up events, respectively. The callbacks receive the `keyCode` as a parameter:
+The package provides KeyboardListener singletone class, which allow you to register event listeners for key down and key up events, respectively. The event callbacks receive the `keyCode` as a parameter:
 
   
 
 ```javascript
 
-keyDownHandler((keyCode) => {
+const listener = KeyboardListener.listener()
 
-console.log("Key down:", keyCode);
-
-});
-
-  
-
-// Key down: 8
-
-  
-
-keyUpHandler((keyCode) => {
-
-console.log("Key up:", keyCode);
-
-});
-
-  
-
-// Key up: 8
-
+listener.on("keyDown", (data: {
+        keyCode: number;
+        keyName: string;
+      }) => {
+//your code
+})
+listener.on("keyUp", (data: {
+        keyCode: number;
+        keyName: string;
+      }) => {
+    //your code
+})
 ```
 
 ## Key Press
@@ -473,8 +463,6 @@ Writes the current image to a file specified by the `path`.
 
 | Function        | Parameters                                                                                   | Return Type |
 |-----------------|----------------------------------------------------------------------------------------------|-------------|
-| keyDownHandler  | `callback: (keyCode: number) => void`                                                         | `void`      |
-| keyUpHandler    | `callback: (keyCode: number) => void`                                                         | `void`      |
 | getWindowData   | `windowName: string`                                                                          | `WindowData`|
 | captureWindow   | `windowName: string, outputPath: string`                                                      | `void`      |
 | mouseMove       | `posX: number, posY: number`                                                                  | `boolean`   |
@@ -484,7 +472,7 @@ Writes the current image to a file specified by the `path`.
 | captureWindowN  | `windowName: string`                                                                          | `Buffer`    |
 | keyPress        | `keyCode: number, repeat?: number`                                                            | `boolean`   |
 | textRecognition | `trainedDataPath: string, dataLang: string, imagePath: string`                                | `string`    |
-
+| captureScreenToFile | `path: string`                                                                            | `boolean`   |
   
 
 ## Examples
@@ -580,10 +568,6 @@ Please note that the above example demonstrates the usage of different methods a
 
 import {
 
-keyDownHandler,
-
-keyUpHandler,
-
 getWindowData,
 
 captureWindow,
@@ -599,34 +583,6 @@ typeString,
 KeyListener,
 
 } from  "node-native-win-utils";
-
-  
-
-// Register key event handlers
-
-  
-
-keyDownHandler((keyCode) => {
-
-console.log("Key down:", keyCode);
-
-});
-
-  
-
-// Key down: 123
-
-  
-
-keyUpHandler((keyCode) => {
-
-console.log("Key up:", keyCode);
-
-});
-
-  
-
-// Key up: 123
 
   
 
@@ -702,11 +658,11 @@ typeString("Hello, world!", 100); // Type with a delay of 100ms between characte
 
   
 
-// Use KeyListener class
+// Use KeyboardListener class
 
   
 
-const  listener  =  new  KeyListener();
+const  listener  =  KeyboardListener.listener();
 
   
 
@@ -736,18 +692,6 @@ console.log("Key up:", data.keyCode, data.keyName);
   
 
 ```
-
-# TODO
-
-  
-
-- Write proper tests
-
-- Add more useful functions
-
-- Fix issue with Windows scale for font,text,apps
-
-  
 
 [OpenCV License](https://github.com/opencv/opencv/blob/master/LICENSE)
 [MIT License](https://github.com/T-Rumibul/node-native-win-utils/blob/main/LICENSE)
