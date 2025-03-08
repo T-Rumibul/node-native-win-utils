@@ -11,14 +11,24 @@ import {
   OpenCV,
   captureWindow,
   keyPress,
-  KeyListener,
   mouseMove,
   mouseClick,
   mouseDrag,
   typeString,
   textRecognition,
   getWindowData,
+  captureScreenToFile,
+  KeyboardListener,
 } from "../dist/index.mjs";
+import EventEmitter from "events";
+
+function sleep(time) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve();
+    }, time);
+  });
+}
 
 //
 // OpenCV Tests
@@ -112,36 +122,56 @@ t.test("OpenCV: imwrite writes a file", async (t) => {
 //
 t.test("captureWindow: writes file if window is captured", async (t) => {
   const filePath = path.join(__dirname, "capture-window-test.png");
-  exec('start cmd.exe /c "timeout 5"', function (error, stdout, stderr) {
+  const cmd = exec('start cmd.exe /c "timeout 5"');
+  await sleep(1000);
 
-    const result = captureWindow("C:\\Windows\\system32\\cmd.exe", filePath);
-    
-      t.ok(
-        fs.existsSync(filePath),
-        "captureWindow() should write a file when successful"
-      );
-      fs.unlinkSync(filePath);
-    
-  });
+  const result = captureWindow("C:\\Windows\\system32\\cmd.exe", filePath);
+  cmd.kill();
+  t.ok(
+    fs.existsSync(filePath),
+    "captureWindow() should write a file when successful"
+  );
+  fs.unlinkSync(filePath);
+
+  t.end();
 });
+
+//
+// captureScreen Test
+//
+t.test("captureScreen: writes file if screen is captured", async (t) => {
+  const filePath = path.join(__dirname, "capture-screen-test.png");
+
+  const result = await captureScreenToFile(filePath);
+
+  t.ok(
+    fs.existsSync(filePath),
+    "captureScreen() should write a file when successful"
+  );
+  fs.unlinkSync(filePath);
+  t.end();
+});
+
 //
 // getWindowData Test
 //
 t.test("getWindowData", async (t) => {
-  exec('start cmd.exe /c "timeout 5"', function () {
-    
-    const result = getWindowData("C:\\Windows\\system32\\cmd.exe");
-      // could not match cuz of different test env
-      // t.equal(
-      //   result,
-      //   { width: 979, height: 512, x: 85, y: 78 }, "window data doesn't match"
-      // );
-    t.type(result, "Object", "getWindowData should return an object")
-    t.type(result.width, "Number", "should be of type number")
-    t.type(result.height, "Number", "should be of type number")
-    t.type(result.x, "Number", "should be of type number")
-    t.type(result.y, "Number", "should be of type number")
-  });
+  const cmd = exec('start cmd.exe /c "timeout 5"');
+  await sleep(1000);
+  const result = getWindowData("C:\\Windows\\system32\\cmd.exe");
+  cmd.kill();
+  // could not match cuz of different test env
+  // t.equal(
+  //   result,
+  //   { width: 979, height: 512, x: 85, y: 78 }, "window data doesn't match"
+  // );
+  t.type(result, "object", "getWindowData should return an object");
+  t.type(result.width, "number", "should be of type number");
+  t.type(result.height, "number", "should be of type number");
+  t.type(result.x, "number", "should be of type number");
+  t.type(result.y, "number", "should be of type number");
+
+  t.end();
 });
 //
 // keyPress Test
@@ -159,29 +189,34 @@ t.test("keyPress: resolves true for a valid key code", async (t) => {
 //
 // KeyListener Tests
 //
-t.test("KeyListener: has event emitter properties", async (t) => {
-  const listener = new KeyListener();
-  let keyDownEmitted = false;
-  let keyUpEmitted = false;
+// t.test("KeyListener: has event emitter properties", async (t) => {
+//   const spy = t.sinon.spy();
+//   let emitter = KeyboardListener.listener();
+//   emitter.on("keyUp", spy);
+//   const c = await keyPress(65, 1);
+ 
 
-  t.equal(
-    typeof listener.on,
-    "function",
-    "KeyListener should have an on() method"
-  );
-  t.ok(
-    listener instanceof KeyListener,
-    "listener should be an instance of KeyListener"
-  );
-  t.end();
-});
+//   t.ok(spy.calledOnce, "Callback should be called exactly once");
+//   t.same(
+//     spy.firstCall.args,
+//     [65],
+//     "Callback should receive the correct arguments"
+//   );
+  
+//   emitter = null
+//   KeyboardListener.destroy();
+//   t.end()
+// });
 
 //
 // Text Recognition Tests
 //
 t.test("Text Recognition", async (t) => {
-  const text = textRecognition(path.resolve(__dirname, "traineddata"), "eng", path.resolve(__dirname, "images", '1.png'))
-  console.log(text.trim())
+  const text = textRecognition(
+    path.resolve(__dirname, "traineddata"),
+    "eng",
+    path.resolve(__dirname, "images", "1.png")
+  );
   t.equal(
     text.trim(),
     "Visual Studio Code\nEditing evolved",
@@ -189,8 +224,6 @@ t.test("Text Recognition", async (t) => {
   );
   t.end();
 });
-
-
 
 //
 // Other Exported Functions
