@@ -405,6 +405,7 @@ class OpenCV {
    * @returns The result of the template matching operation.
    */
   matchTemplate(template: ImageData, method?: number | null, mask?: ImageData) {
+    if(typeof method !== "number") method = TemplateMatchModes.TM_CCOEFF_NORMED;
     return matchTemplate(this.imageData, template, method, mask);
   }
 
