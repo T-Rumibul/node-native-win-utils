@@ -121,6 +121,9 @@ export type Blur = (
 ) => ImageData;
 export type BgrToGray = (image: ImageData) => ImageData;
 export type EqualizeHist = (image: ImageData) => ImageData;
+
+export type ColorBound = [number, number, number]
+export type DarkenColor = (image: ImageData, lowerBound: ColorBound, upperBound: ColorBound, darkenFactor: number) => ImageData;
 export type DrawRectangle = (
   image: ImageData,
   start: Point,
@@ -154,7 +157,8 @@ const {
   drawRectangle,
   getRegion,
   textRecognition,
-  equalizeHist
+  equalizeHist,
+  darkenColor
 }: {
   setKeyDownCallback: SetKeyCallback;
   setKeyUpCallback: SetKeyCallback;
@@ -176,7 +180,8 @@ const {
   getRegion: GetRegion;
   textRecognition: TextRecognition;
   captureScreenAsync: CaptureScreenAsync;
-  equalizeHist: EqualizeHist
+  equalizeHist: EqualizeHist;
+  darkenColor: DarkenColor;
 } = bindings;
 
 const rawPressKey = pressKey;
@@ -434,7 +439,38 @@ class OpenCV {
  equalizeHist() {
   return new OpenCV(equalizeHist(this.imageData));
 }
+rgbToHsv(rgb: ColorBound) {
+ const r_norm = rgb[0] / 255;
+ const g_norm = rgb[1] / 255;
+ const b_norm = rgb[2] / 255;
+ const Cmax = Math.max(r_norm, g_norm, b_norm);
+ const Cmin = Math.min(r_norm, g_norm, b_norm);
+ const delta = Cmax - Cmin;
 
+ let Hue = 0;
+ if (delta !== 0) {
+  switch (Cmax) {
+    case r_norm:
+      Hue = 60 * (((g_norm - b_norm) / delta) % 6);
+      break;
+    case g_norm:
+      Hue = 60 * (((b_norm - r_norm) / delta) + 2);
+      break;
+    case b_norm:
+      Hue = 60 * (((r_norm - g_norm) / delta) + 4);
+      break;
+  }
+}
+ let Saturation = 0.0 * 100;
+ if(Cmax !== 0) Saturation = (delta / Cmax) * 100;
+ let Value = Cmax * 100;
+ return [
+  [Hue, Saturation, Value]
+];
+}
+darkenColor(lowerBound: ColorBound, upperBound: ColorBound, darkenFactor: number) {
+  return new OpenCV(darkenColor(this.imageData, lowerBound, upperBound, darkenFactor));
+}
 
   /**
    * Draws a rectangle on the image.

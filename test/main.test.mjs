@@ -81,6 +81,17 @@ t.test("OpenCV: equalizeHist returns a new instance", async (t) => {
   t.end();
 });
 
+t.test("OpenCV: darkenColor returns a new instance", async (t) => {
+  const dummyImage = {
+    width: 50,
+    height: 50,
+    data: new Uint8Array(50 * 50 * 3),
+  };
+  const opencv = new OpenCV(path.join(__dirname, "images", "1.png"));
+  const gray = opencv.darkenColor([254, 254, 254], [255, 255, 255], 0);
+  t.ok(gray instanceof OpenCV, "darkenColor should return an OpenCV instance");
+  t.end();
+});
 
 
 t.test("OpenCV: drawRectangle returns a new instance", async (t) => {

@@ -234,6 +234,9 @@ Napi::Value BgrToGray(const Napi::CallbackInfo &info)
     return result;
 }
 
+
+
+
 Napi::Value EqualizeHist(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
@@ -453,20 +456,90 @@ Napi::Value GetRegion(const Napi::CallbackInfo &info)
     return result;
 }
 
-// Napi::Value ReadImage(const Napi::CallbackInfo &info)
-// {
-//     Napi::Env env = info.Env();
-//     std::string imagePath = info[0].As<Napi::String>();
 
-//     cv::Mat image = cv::imread(imagePath, cv::IMREAD_COLOR);
-//     if (image.empty())
-//     {
-//         Napi::TypeError::New(env, "Could not read the image").ThrowAsJavaScriptException();
-//         return env.Null();
-//     }
 
-//     cv::Mat grayImage;
-//     cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
 
-//     return Napi::Number::New(env, grayImage.rows * grayImage.cols);
-// }
+
+Napi::Value DarkenColor(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    // Validate arguments: (imageData: Object, lowerBound: Array, upperBound: Array, number darkFactor)
+    if (info.Length() < 4 ||
+        !info[0].IsObject() ||
+        !info[1].IsArray() ||
+        !info[2].IsArray() ||
+        !info[3].IsNumber()) {
+        Napi::TypeError::New(env, "Invalid arguments. Expected: (object, array, array, number)")
+            .ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Object imageData = info[0].As<Napi::Object>();
+    Napi::Array lowerArray = info[1].As<Napi::Array>();
+    Napi::Array upperArray = info[2].As<Napi::Array>();
+    double darkFactor = info[3].ToNumber().DoubleValue();
+
+    // Validate imageData object properties
+    if (!imageData.Has("width") || !imageData.Has("height") || !imageData.Has("data")) {
+        Napi::TypeError::New(env, "Invalid image data object. Expected properties: 'width', 'height', 'data'")
+            .ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    // Validate bounds arrays length
+    if (lowerArray.Length() != 3 || upperArray.Length() != 3) {
+        Napi::TypeError::New(env, "Lower and upper color bounds must be arrays of length 3")
+            .ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    int width = imageData.Get("width").ToNumber().Int32Value();
+    int height = imageData.Get("height").ToNumber().Int32Value();
+
+    if (!imageData.Get("data").IsTypedArray()) {
+        Napi::TypeError::New(env, "'data' property must be a TypedArray")
+            .ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Uint8Array uint8Array = imageData.Get("data").As<Napi::Uint8Array>();
+    // Account for potential byteOffset in the typed array.
+    uint8_t* dataPtr = reinterpret_cast<uint8_t*>(uint8Array.ArrayBuffer().Data()) + uint8Array.ByteOffset();
+
+    // Create a cv::Mat using the underlying data of the Uint8Array.
+    cv::Mat inputImage(height, width, CV_8UC3, dataPtr);
+    cv::Mat image;
+    cv::cvtColor(inputImage, image, cv::COLOR_BGR2RGB);
+    // Create lower and upper bounds from the provided arrays.
+    cv::Scalar lower_bound(
+        lowerArray.Get((uint32_t)0).ToNumber().DoubleValue(),
+        lowerArray.Get((uint32_t)1).ToNumber().DoubleValue(),
+        lowerArray.Get((uint32_t)2).ToNumber().DoubleValue()
+    );
+    cv::Scalar upper_bound(
+        upperArray.Get((uint32_t)0).ToNumber().DoubleValue(),
+        upperArray.Get((uint32_t)1).ToNumber().DoubleValue(),
+        upperArray.Get((uint32_t)2).ToNumber().DoubleValue()
+    );
+
+    // Loop through the image pixels and darken the ones within the color range
+    for (int y = 0; y < image.rows; y++) {
+        for (int x = 0; x < image.cols; x++) {
+            cv::Vec3b& color = image.at<cv::Vec3b>(y, x);
+
+            // Check if the pixel is within the color range
+            if (color[0] >= lower_bound[0] && color[0] <= upper_bound[0] &&
+                color[1] >= lower_bound[1] && color[1] <= upper_bound[1] &&
+                color[2] >= lower_bound[2] && color[2] <= upper_bound[2]) {
+
+                // Darken the pixel by scaling down its color values
+                color[0] = std::max(0, int(color[0] * darkFactor));
+                color[1] = std::max(0, int(color[1] * darkFactor));
+                color[2] = std::max(0, int(color[2] * darkFactor));
+            }
+        }
+    }
+    cv::cvtColor(image, inputImage, cv::COLOR_RGB2BGR);
+    // Return the modified imageData (which shares the same underlying data).
+    return imageData;
+}
