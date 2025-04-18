@@ -2,17 +2,6 @@
 [![License][license-src]][license-href] 
 ![Node-API v8 Badge](https://github.com/nodejs/abi-stable-node/blob/doc/assets/Node-API%20v8%20Badge.svg)
 
-#### USDT TRC20 - TYAJ3K3MZraJhWimxxeCKcJ2SYABkVsrzi
-####  USDT TON - UQDokuYZXr4OHvfslDqUoFYcp1_F8tcjQPk_TvqSSDk7SIa7
-####  BTC - 1A3mNKFdWKXZ7Bcnez8LbWbYHgck1g4GeV
-####  NOT - UQDokuYZXr4OHvfslDqUoFYcp1_F8tcjQPk_TvqSSDk7SIa7
-
-  
-
-####  Will be very thankful for any support
-
-  
-
 # Node Native Win Utils
 
   
