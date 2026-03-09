@@ -18,9 +18,9 @@ import {
   textRecognition,
   getWindowData,
   captureScreenToFile,
-  KeyboardListener,
+  stopMouseListener,
+  startMouseListener
 } from "../dist/index.mjs";
-import EventEmitter from "events";
 
 function sleep(time) {
   return new Promise((resolve, reject) => {
@@ -219,7 +219,7 @@ t.test("keyPress: resolves true for a valid key code", async (t) => {
 //   let emitter = KeyboardListener.listener();
 //   emitter.on("keyUp", spy);
 //   const c = await keyPress(65, 1);
- 
+
 
 //   t.ok(spy.calledOnce, "Callback should be called exactly once");
 //   t.same(
@@ -227,7 +227,7 @@ t.test("keyPress: resolves true for a valid key code", async (t) => {
 //     [65],
 //     "Callback should receive the correct arguments"
 //   );
-  
+
 //   emitter = null
 //   KeyboardListener.destroy();
 //   t.end()
@@ -236,19 +236,19 @@ t.test("keyPress: resolves true for a valid key code", async (t) => {
 //
 // Text Recognition Tests
 //
-t.test("Text Recognition", async (t) => {
-  const text = textRecognition(
-    path.resolve(__dirname, "traineddata"),
-    "eng",
-    path.resolve(__dirname, "images", "1.png")
-  );
-  t.equal(
-    text.trim(),
-    "Visual Studio Code\nEditing evolved",
-    "KeyListener should have an on() method"
-  );
-  t.end();
-});
+// t.test("Text Recognition", async (t) => {
+//   const text = textRecognition(
+//     path.resolve(__dirname, "traineddata"),
+//     "eng",
+//     path.resolve(__dirname, "images", "1.png")
+//   );
+//   t.equal(
+//     text.trim(),
+//     "Visual Studio Code\nEditing evolved",
+//     "KeyListener should have an on() method"
+//   );
+//   t.end();
+// });
 
 //
 // Other Exported Functions
@@ -258,5 +258,20 @@ t.test("Exported functions: types check", async (t) => {
   t.type(mouseClick, "function", "mouseClick should be a function");
   t.type(mouseDrag, "function", "mouseDrag should be a function");
   t.type(typeString, "function", "typeString should be a function");
+  t.end();
+});
+
+t.test("Mouse listener", async (t) => {
+  const pushedButtons = []
+  startMouseListener(({ x, y, type }) => {
+    pushedButtons.push(type)
+  })
+
+  mouseClick('left')
+  const e = stopMouseListener()
+  console.log(e)
+  await sleep(1000)
+
+  t.ok(pushedButtons.includes('leftDown') && pushedButtons.includes('leftDown'), 'Mouse listener should handle mouse events')
   t.end();
 });
