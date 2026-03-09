@@ -7,6 +7,7 @@ build
 src/*.ts
 dll
 .tap
+t.mjs
 buildHelpers
 libs
 include
@@ -14,5 +15,5 @@ include
 !src/cpp/*.cpp
 !src/cpp
 !dist
-!package-lock.json
+
 !prebuilds
