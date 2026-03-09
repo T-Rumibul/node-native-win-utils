@@ -34,6 +34,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("textRecognition", Napi::Function::New(env, TextRecognition));
     exports.Set("bringWindowToFront", Napi::Function::New(env, BringWindowToFront));
     exports.Set("startMouseListener", Napi::Function::New(env, StartMouseListener));
+    exports.Set("stopMouseListener", Napi::Function::New(env, StopMouseListener));
     static GdiPlusInitializer gdiplusInitializer;
      // Register cleanup hook
     env.AddCleanupHook(CleanupHook);

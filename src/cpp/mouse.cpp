@@ -4,6 +4,8 @@
 
 HHOOK mouseHook;
 Napi::ThreadSafeFunction tsfn;
+static HANDLE hHookThread = NULL;
+static DWORD  hookThreadId = 0;
 /**
  * Move the mouse to a specific point.
  * @param point The coordinates to move the mouse to (x, y).
@@ -230,6 +232,7 @@ LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(mouseHook, nCode, wParam, lParam);
 }
 
+
 DWORD WINAPI HookThread(LPVOID)
 {
     mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
@@ -242,6 +245,7 @@ DWORD WINAPI HookThread(LPVOID)
     }
 
     UnhookWindowsHookEx(mouseHook);
+    mouseHook = NULL;
     return 0;
 }
 
@@ -254,7 +258,12 @@ Napi::Value StartMouseListener(const Napi::CallbackInfo &info)
         Napi::TypeError::New(env, "Callback expected").ThrowAsJavaScriptException();
         return env.Null();
     }
-
+    // Bug fix: prevent double-start leaking a thread and hook
+    if (hHookThread != NULL)
+    {
+        Napi::TypeError::New(env, "Mouse listener already running").ThrowAsJavaScriptException();
+        return env.Null();
+    }
     Napi::Function callback = info[0].As<Napi::Function>();
 
     tsfn = Napi::ThreadSafeFunction::New(
@@ -264,7 +273,55 @@ Napi::Value StartMouseListener(const Napi::CallbackInfo &info)
         0,
         1);
 
-    CreateThread(NULL, 0, HookThread, NULL, 0, NULL);
+    // Store handle and thread ID so StopMouseListener can signal and wait
+    hHookThread = CreateThread(NULL, 0, HookThread, NULL, 0, &hookThreadId);
 
     return Napi::Boolean::New(env, true);
+}
+
+
+Napi::Value StopMouseListener(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+    Napi::Object result = Napi::Object::New(env);
+
+    if (hHookThread == NULL)
+    {
+        result.Set("success", false);
+        result.Set("error", "No listener is running");
+        return result;
+    }
+
+    // PostThreadMessage with WM_QUIT breaks the GetMessage loop in HookThread,
+    // which then runs UnhookWindowsHookEx and exits
+    if (!PostThreadMessage(hookThreadId, WM_QUIT, 0, 0))
+    {
+        result.Set("success", false);
+        result.Set("error", "Failed to signal hook thread");
+        result.Set("errorCode", Napi::Number::New(env, GetLastError()));
+        return result;
+    }
+
+    // Wait for the thread to fully exit before releasing resources
+    DWORD waitResult = WaitForSingleObject(hHookThread, 3000);
+    if (waitResult != WAIT_OBJECT_0)
+    {
+        // Thread didn't exit in time — force it and warn
+        TerminateThread(hHookThread, 1);
+        result.Set("success", false);
+        result.Set("error", "Hook thread did not exit cleanly, was forcefully terminated");
+    }
+    else
+    {
+        result.Set("success", true);
+    }
+
+    // Release the TSFN so Node.js can garbage collect the JS callback
+    tsfn.Release();
+
+    CloseHandle(hHookThread);
+    hHookThread = NULL;
+    hookThreadId = 0;
+
+    return result;
 }

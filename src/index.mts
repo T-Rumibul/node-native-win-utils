@@ -108,7 +108,7 @@ export type Imread = (path: string) => ImageData;
 export type Imwrite = (image: ImageData) => Buffer;
 
 export type StartMouseListener = (callback: (data: {x: number, y: number, type: string}) => void) => void;
-
+export type StopMouseListener = () => {success: boolean, error?: string, errorCode?: number};
 export type MatchTemplate = (
   image: ImageData,
   template: ImageData,
@@ -162,7 +162,9 @@ const {
   equalizeHist,
   darkenColor,
   bringWindowToFront,
-  startMouseListener
+  startMouseListener,
+  stopMouseListener
+  
 }: {
   setKeyDownCallback: SetKeyCallback;
   setKeyUpCallback: SetKeyCallback;
@@ -187,7 +189,8 @@ const {
   equalizeHist: EqualizeHist;
   darkenColor: DarkenColor;
   bringWindowToFront: BringWindowToFront;
-  startMouseListener: StartMouseListener
+  startMouseListener: StartMouseListener;
+  stopMouseListener: StopMouseListener
 } = bindings;
 
 const rawPressKey = pressKey;
@@ -545,6 +548,7 @@ export {
   captureScreenToFile,
   captureScreenAsync,
   startMouseListener,
+  stopMouseListener,
   KeyboardListener,
   OpenCV
 };
