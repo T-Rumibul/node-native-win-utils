@@ -9,6 +9,7 @@
 
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
+    
     exports.Set("getWindowData", Napi::Function::New(env, GetWindowData));
     exports.Set("captureWindowN", Napi::Function::New(env, CaptureWindow));
     exports.Set("captureScreenAsync", Napi::Function::New(env, CaptureScreenAsync));
@@ -31,6 +32,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("drawRectangle", Napi::Function::New(env, DrawRectangle));
     exports.Set("getRegion", Napi::Function::New(env, GetRegion));
     exports.Set("textRecognition", Napi::Function::New(env, TextRecognition));
+    exports.Set("bringWindowToFront", Napi::Function::New(env, BringWindowToFront));
+    exports.Set("startMouseListener", Napi::Function::New(env, StartMouseListener));
     static GdiPlusInitializer gdiplusInitializer;
      // Register cleanup hook
     env.AddCleanupHook(CleanupHook);

@@ -1,6 +1,9 @@
 // patrially used code from https://github.com/octalmage/robotjs witch is under MIT License Copyright (c) 2014 Jason Stallings
 #include <napi.h>
 #include <windows.h>
+
+HHOOK mouseHook;
+Napi::ThreadSafeFunction tsfn;
 /**
  * Move the mouse to a specific point.
  * @param point The coordinates to move the mouse to (x, y).
@@ -170,6 +173,98 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
     mouseUpInput.mi.time = 0; // System will provide the timestamp
 
     SendInput(1, &mouseUpInput, sizeof(mouseUpInput));
+
+    return Napi::Boolean::New(env, true);
+}
+
+
+LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode >= 0)
+    {
+        MSLLHOOKSTRUCT *mouse = (MSLLHOOKSTRUCT *)lParam;
+
+        int x = mouse->pt.x;
+        int y = mouse->pt.y;
+
+        std::string type = "move";
+
+        switch (wParam)
+        {
+        case WM_LBUTTONDOWN:
+            type = "leftDown";
+            break;
+        case WM_LBUTTONUP:
+            type = "leftUp";
+            break;
+        case WM_RBUTTONDOWN:
+            type = "rightDown";
+            break;
+        case WM_RBUTTONUP:
+            type = "rightUp";
+            break;
+        case WM_MBUTTONDOWN:
+            type = "middleDown";
+            break;
+        case WM_MBUTTONUP:
+            type = "middleUp";
+            break;
+        case WM_MOUSEMOVE:
+            type = "move";
+            break;
+        }
+
+        auto callback = [x, y, type](Napi::Env env, Napi::Function jsCallback)
+        {
+            Napi::Object event = Napi::Object::New(env);
+            event.Set("x", x);
+            event.Set("y", y);
+            event.Set("type", type);
+
+            jsCallback.Call({event});
+        };
+
+        tsfn.BlockingCall(callback);
+    }
+
+    return CallNextHookEx(mouseHook, nCode, wParam, lParam);
+}
+
+DWORD WINAPI HookThread(LPVOID)
+{
+    mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
+
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    UnhookWindowsHookEx(mouseHook);
+    return 0;
+}
+
+Napi::Value StartMouseListener(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (!info[0].IsFunction())
+    {
+        Napi::TypeError::New(env, "Callback expected").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Function callback = info[0].As<Napi::Function>();
+
+    tsfn = Napi::ThreadSafeFunction::New(
+        env,
+        callback,
+        "MouseListener",
+        0,
+        1);
+
+    CreateThread(NULL, 0, HookThread, NULL, 0, NULL);
 
     return Napi::Boolean::New(env, true);
 }

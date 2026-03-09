@@ -107,6 +107,8 @@ export type Imread = (path: string) => ImageData;
 
 export type Imwrite = (image: ImageData) => Buffer;
 
+export type StartMouseListener = (callback: (data: {x: number, y: number, type: string}) => void) => void;
+
 export type MatchTemplate = (
   image: ImageData,
   template: ImageData,
@@ -135,7 +137,7 @@ export type GetRegion = (image: ImageData, region: ROI) => ImageData;
 
 export type TextRecognition = (trainedDataPath: string, dataLang: string, imagePath: string) => string;
 export type CaptureScreenAsync = () => Promise<Buffer>;
-
+export type BringWindowToFront = (windowName: string) => boolean;
 const {
   setKeyDownCallback,
   setKeyUpCallback,
@@ -158,7 +160,9 @@ const {
   getRegion,
   textRecognition,
   equalizeHist,
-  darkenColor
+  darkenColor,
+  bringWindowToFront,
+  startMouseListener
 }: {
   setKeyDownCallback: SetKeyCallback;
   setKeyUpCallback: SetKeyCallback;
@@ -182,6 +186,8 @@ const {
   captureScreenAsync: CaptureScreenAsync;
   equalizeHist: EqualizeHist;
   darkenColor: DarkenColor;
+  bringWindowToFront: BringWindowToFront;
+  startMouseListener: StartMouseListener
 } = bindings;
 
 const rawPressKey = pressKey;
@@ -525,6 +531,7 @@ function keyPress(keyCode: number, repeat?: number): Promise<boolean> {
 
 export {
   getWindowData,
+  bringWindowToFront,
   captureWindow,
   captureWindowN,
   mouseMove,
@@ -537,6 +544,7 @@ export {
   textRecognition,
   captureScreenToFile,
   captureScreenAsync,
+  startMouseListener,
   KeyboardListener,
   OpenCV
 };
