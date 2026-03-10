@@ -1,6 +1,6 @@
 {
   "name": "node-native-win-utils",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "author": "Andrew K.",
   "license": "MIT",
   "repository": "https://github.com/T-Rumibul/node-native-win-utils.git",
@@ -40,7 +40,7 @@
     "install": "node-gyp-build",
     "build": "node-gyp clean && npx prebuildify --napi && node ./buildHelpers/dllCopy.js && npm run buildts",
     "buildts": "node ./buildHelpers/cjsCompatBuild.js",
-    "test": "tap run "
+    "test": "tap run"
   },
   "dependencies": {
     "node-addon-api": "^8.6.0",
