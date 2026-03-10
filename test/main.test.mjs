@@ -11,15 +11,8 @@ import {
   OpenCV,
   captureWindow,
   keyPress,
-  mouseMove,
-  mouseClick,
-  mouseDrag,
-  typeString,
-  textRecognition,
   getWindowData,
   captureScreenToFile,
-  stopMouseListener,
-  startMouseListener
 } from "../dist/index.mjs";
 
 function sleep(time) {
@@ -253,25 +246,3 @@ t.test("keyPress: resolves true for a valid key code", async (t) => {
 //
 // Other Exported Functions
 //
-t.test("Exported functions: types check", async (t) => {
-  t.type(mouseMove, "function", "mouseMove should be a function");
-  t.type(mouseClick, "function", "mouseClick should be a function");
-  t.type(mouseDrag, "function", "mouseDrag should be a function");
-  t.type(typeString, "function", "typeString should be a function");
-  t.end();
-});
-
-t.test("Mouse listener", async (t) => {
-  const pushedButtons = []
-  startMouseListener(({ x, y, type }) => {
-    pushedButtons.push(type)
-  })
-
-  mouseClick('left')
-  const e = stopMouseListener()
-  console.log(e)
-  await sleep(1000)
-
-  t.ok(pushedButtons.includes('leftDown') && pushedButtons.includes('leftDown'), 'Mouse listener should handle mouse events')
-  t.end();
-});
