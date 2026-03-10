@@ -69,12 +69,13 @@ Napi::Value MoveMouse(const Napi::CallbackInfo &info)
 Napi::Value ClickMouse(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
-    std::string button;
-
-    if (info.Length() < 1 || !info[0].IsString())
-        button = "left";
-    else
+    std::string button = "left";
+    std::string type = "click";
+    if (info.Length() >= 1 && info[0].IsString())
         button = info[0].As<Napi::String>();
+    if(info.Length() >= 2 && info[1].IsString())
+        type = info[1].As<Napi::String>();
+        
 
     WORD downFlag = 0, upFlag = 0;
 
@@ -98,15 +99,23 @@ Napi::Value ClickMouse(const Napi::CallbackInfo &info)
         Napi::TypeError::New(env, "Invalid button name").ThrowAsJavaScriptException();
         return env.Null();
     }
+    UINT sent = 0;
+    INPUT inputsClick[2] = {};
+    inputsClick[0].type = INPUT_MOUSE;
+    inputsClick[0].mi.dwFlags = downFlag;
+    inputsClick[1].type = INPUT_MOUSE;
+    inputsClick[1].mi.dwFlags = upFlag;
+    inputsClick[1].mi.time = 0;
+    inputsClick[0].mi.time = 0;
+    INPUT singleInput[1] = {};
+    singleInput[0].type = INPUT_MOUSE;
+    WORD flag = (type == "down") ? downFlag : upFlag;
+    singleInput[0].mi.dwFlags = flag;
 
-    // Perform the mouse click
-    INPUT inputs[2] = {};
-    inputs[0].type = INPUT_MOUSE;
-    inputs[0].mi.dwFlags = downFlag;
-    inputs[1].type = INPUT_MOUSE;
-    inputs[1].mi.dwFlags = upFlag;
-
-    UINT sent = SendInput(2, inputs, sizeof(INPUT));
+    if(type == "click")
+        sent = SendInput(2, inputsClick, sizeof(INPUT));
+    else
+        sent = SendInput(1, singleInput, sizeof(INPUT));
     if (sent == 0)
         return Napi::Boolean::New(env, false);
     return Napi::Boolean::New(env, true);

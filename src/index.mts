@@ -68,7 +68,7 @@ export type MouseMove = (posX: number, posY: number) => boolean;
 /**
  * Function type for simulating a mouse click.
  */
-export type MouseClick = (button?: "left" | "middle" | "right") => boolean;
+export type MouseClick = (button?: "left" | "middle" | "right", type?: "down" | "up" | "click") => boolean;
 
 /**
  * Function type for simulating typing.
