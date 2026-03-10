@@ -75,6 +75,8 @@ keyPress(KeyCodeHelper.Enter, 2);    // twice
 mouseMove(500, 300);
 mouseClick();                    // left click
 mouseClick("right");
+mouseClick("left", "down") // left button down
+mouseClick("left", "up") // left button up
 mouseDrag(100, 100, 800, 600, 50); // optional speed
 
 typeString("Hello from Node!", 30); // 30ms delay per char
