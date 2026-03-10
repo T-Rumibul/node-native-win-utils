@@ -17,6 +17,7 @@
             "libraries": [
                 "dwmapi.lib",
                 "windowsapp.lib",
+                "Shcore.lib",
                 "-lgdi32", 
                 "-lgdiplus",
                 "<!(node -p \"require('path').resolve('libs/libjpeg-turbo.lib')\")",

@@ -6,10 +6,10 @@
 #include <mouse.cpp>
 #include <opencv.cpp>
 #include <tesseract.cpp>
-
+#include <ShellScalingApi.h>
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
-    
+    SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     exports.Set("getWindowData", Napi::Function::New(env, GetWindowData));
     exports.Set("captureWindowN", Napi::Function::New(env, CaptureWindow));
     exports.Set("captureScreenAsync", Napi::Function::New(env, CaptureScreenAsync));

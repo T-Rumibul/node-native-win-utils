@@ -1,11 +1,36 @@
 // patrially used code from https://github.com/octalmage/robotjs witch is under MIT License Copyright (c) 2014 Jason Stallings
 #include <napi.h>
 #include <windows.h>
+#include <atomic>
+#include <cmath>
 
 HHOOK mouseHook;
 Napi::ThreadSafeFunction tsfn;
 static HANDLE hHookThread = NULL;
-static DWORD  hookThreadId = 0;
+static DWORD hookThreadId = 0;
+static std::atomic_flag listenerRunning = ATOMIC_FLAG_INIT;
+static std::atomic<bool> listenerStopping = false;
+static HANDLE hHookReady = NULL;
+
+struct Position
+{
+    int x;
+    int y;
+};
+
+Position calcAbsolutePosition(int x, int y)
+{
+    int vLeft = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    int vTop = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    int vWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    int vHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    if (vWidth <= 1 || vHeight <= 1)
+        return {0, 0}; // No virtual screen
+    int absoluteX = static_cast<int>((static_cast<long long>(x - vLeft) * 65535) / (vWidth - 1));
+    int absoluteY = static_cast<int>((static_cast<long long>(y - vTop) * 65535) / (vHeight - 1));
+    return {absoluteX, absoluteY};
+}
+
 /**
  * Move the mouse to a specific point.
  * @param point The coordinates to move the mouse to (x, y).
@@ -24,13 +49,9 @@ Napi::Value MoveMouse(const Napi::CallbackInfo &info)
     int posX = info[0].As<Napi::Number>();
     int posY = info[1].As<Napi::Number>();
 
-    // Get the screen metrics
-    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-
-    // Convert coordinates to absolute values
-    int absoluteX = static_cast<int>((65536 * posX) / screenWidth);
-    int absoluteY = static_cast<int>((65536 * posY) / screenHeight);
+    Position pos = calcAbsolutePosition(posX, posY);
+    int absoluteX = pos.x;
+    int absoluteY = pos.y;
 
     // Move the mouse
     INPUT mouseInput = {0};
@@ -39,9 +60,9 @@ Napi::Value MoveMouse(const Napi::CallbackInfo &info)
     mouseInput.mi.dy = absoluteY;
     mouseInput.mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK;
     mouseInput.mi.time = 0; // System will provide the timestamp
-
-    SendInput(1, &mouseInput, sizeof(mouseInput));
-
+    UINT sent = SendInput(1, &mouseInput, sizeof(INPUT));
+    if (sent == 0)
+        return Napi::Boolean::New(env, false);
     return Napi::Boolean::New(env, true);
 }
 
@@ -55,19 +76,22 @@ Napi::Value ClickMouse(const Napi::CallbackInfo &info)
     else
         button = info[0].As<Napi::String>();
 
-    WORD mouseEvent = 0;
+    WORD downFlag = 0, upFlag = 0;
 
     if (button == "left")
     {
-        mouseEvent = MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP;
+        downFlag = MOUSEEVENTF_LEFTDOWN;
+        upFlag = MOUSEEVENTF_LEFTUP;
     }
     else if (button == "right")
     {
-        mouseEvent = MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_RIGHTUP;
+        downFlag = MOUSEEVENTF_RIGHTDOWN;
+        upFlag = MOUSEEVENTF_RIGHTUP;
     }
     else if (button == "middle")
     {
-        mouseEvent = MOUSEEVENTF_MIDDLEDOWN | MOUSEEVENTF_MIDDLEUP;
+        downFlag = MOUSEEVENTF_MIDDLEDOWN;
+        upFlag = MOUSEEVENTF_MIDDLEUP;
     }
     else
     {
@@ -76,13 +100,15 @@ Napi::Value ClickMouse(const Napi::CallbackInfo &info)
     }
 
     // Perform the mouse click
-    INPUT mouseInput = {0};
-    mouseInput.type = INPUT_MOUSE;
-    mouseInput.mi.dwFlags = mouseEvent;
-    mouseInput.mi.time = 0; // System will provide the timestamp
+    INPUT inputs[2] = {};
+    inputs[0].type = INPUT_MOUSE;
+    inputs[0].mi.dwFlags = downFlag;
+    inputs[1].type = INPUT_MOUSE;
+    inputs[1].mi.dwFlags = upFlag;
 
-    SendInput(1, &mouseInput, sizeof(mouseInput));
-
+    UINT sent = SendInput(2, inputs, sizeof(INPUT));
+    if (sent == 0)
+        return Napi::Boolean::New(env, false);
     return Napi::Boolean::New(env, true);
 }
 
@@ -95,7 +121,7 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
         Napi::TypeError::New(env, "You should provide startX, startY, endX, endY").ThrowAsJavaScriptException();
         return env.Null();
     }
-
+    bool success = true;
     int startX = info[0].As<Napi::Number>();
     int startY = info[1].As<Napi::Number>();
     int endX = info[2].As<Napi::Number>();
@@ -105,23 +131,26 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
     {
         speed = info[4].As<Napi::Number>();
     }
-
+    // Use pixel coords for timing
+    double pixelDistX = endX - startX;
+    double pixelDistY = endY - startY;
+    double pixelDistance = sqrt(pixelDistX * pixelDistX + pixelDistY * pixelDistY);
+    if (speed <= 0)
+        speed = 1; // guard div/0
+    double duration = pixelDistance / speed;
     // Get the screen metrics
-    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
+    Position startPos = calcAbsolutePosition(startX, startY);
+    Position endPos = calcAbsolutePosition(endX, endY);
     // Convert coordinates to absolute values
-    int absoluteStartX = static_cast<int>((65536 * startX) / screenWidth);
-    int absoluteStartY = static_cast<int>((65536 * startY) / screenHeight);
-    int absoluteEndX = static_cast<int>((65536 * endX) / screenWidth);
-    int absoluteEndY = static_cast<int>((65536 * endY) / screenHeight);
+    int absoluteStartX = startPos.x;
+    int absoluteStartY = startPos.y;
+    int absoluteEndX = endPos.x;
+    int absoluteEndY = endPos.y;
 
     // Calculate the distance and duration based on speed
     double distanceX = absoluteEndX - absoluteStartX;
     double distanceY = absoluteEndY - absoluteStartY;
-    double distance = sqrt(distanceX * distanceX + distanceY * distanceY);
-    double duration = distance / speed;
-
     // Move the mouse to the starting position
     INPUT startMouseInput = {0};
     startMouseInput.type = INPUT_MOUSE;
@@ -130,7 +159,9 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
     startMouseInput.mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK;
     startMouseInput.mi.time = 0; // System will provide the timestamp
 
-    SendInput(1, &startMouseInput, sizeof(startMouseInput));
+    if (SendInput(1, &startMouseInput, sizeof(INPUT)) == 0)
+        return Napi::Boolean::New(env, false);
+    ;
 
     // Perform mouse button down event
     INPUT mouseDownInput = {0};
@@ -138,7 +169,9 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
     mouseDownInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
     mouseDownInput.mi.time = 0; // System will provide the timestamp
 
-    SendInput(1, &mouseDownInput, sizeof(mouseDownInput));
+    if (SendInput(1, &mouseDownInput, sizeof(INPUT)) == 0)
+        return Napi::Boolean::New(env, false);
+    ;
 
     // Calculate the number of steps based on the duration and desired speed
     const int steps = 100; // Adjust the number of steps for smoother movement
@@ -148,7 +181,7 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
     double stepY = distanceY / steps;
 
     // Move the mouse in increments to simulate dragging with speed control
-    for (int i = 0; i < steps; ++i)
+    for (int i = 0; i <= steps; ++i)
     {
         // Calculate the position for the current step
         int currentX = static_cast<int>(absoluteStartX + (stepX * i));
@@ -162,10 +195,15 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
         mouseMoveInput.mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK;
         mouseMoveInput.mi.time = 0; // System will provide the timestamp
 
-        SendInput(1, &mouseMoveInput, sizeof(mouseMoveInput));
+        if (SendInput(1, &mouseMoveInput, sizeof(INPUT)) == 0)
+            return Napi::Boolean::New(env, false);
+        ;
 
         // Sleep for a short duration to control the speed
-        Sleep(static_cast<DWORD>(duration / steps));
+        if (i < steps)
+        {
+            Sleep(static_cast<DWORD>(duration / steps));
+        }
     }
 
     // Perform mouse button up event
@@ -174,15 +212,14 @@ Napi::Value DragMouse(const Napi::CallbackInfo &info)
     mouseUpInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
     mouseUpInput.mi.time = 0; // System will provide the timestamp
 
-    SendInput(1, &mouseUpInput, sizeof(mouseUpInput));
-
-    return Napi::Boolean::New(env, true);
+    if (SendInput(1, &mouseUpInput, sizeof(INPUT)) == 0)
+        return Napi::Boolean::New(env, false);
+    return Napi::Boolean::New(env, success);
 }
-
 
 LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
-    if (nCode >= 0)
+    if (nCode >= 0 && !listenerStopping.load())
     {
         MSLLHOOKSTRUCT *mouse = (MSLLHOOKSTRUCT *)lParam;
 
@@ -226,17 +263,23 @@ LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
             jsCallback.Call({event});
         };
 
-        tsfn.BlockingCall(callback);
+        napi_status status = tsfn.NonBlockingCall(callback);
+        if (status != napi_ok)
+        {
+            // tsfn is already closing
+            return CallNextHookEx(mouseHook, nCode, wParam, lParam);
+        }
     }
 
     return CallNextHookEx(mouseHook, nCode, wParam, lParam);
 }
 
-
 DWORD WINAPI HookThread(LPVOID)
 {
     mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
-
+    SetEvent(hHookReady);
+    if (mouseHook == NULL)
+        return 1;
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
@@ -259,7 +302,7 @@ Napi::Value StartMouseListener(const Napi::CallbackInfo &info)
         return env.Null();
     }
     // Bug fix: prevent double-start leaking a thread and hook
-    if (hHookThread != NULL)
+    if (listenerRunning.test_and_set())
     {
         Napi::TypeError::New(env, "Mouse listener already running").ThrowAsJavaScriptException();
         return env.Null();
@@ -274,11 +317,42 @@ Napi::Value StartMouseListener(const Napi::CallbackInfo &info)
         1);
 
     // Store handle and thread ID so StopMouseListener can signal and wait
+    hHookReady = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (hHookReady == NULL)
+    {
+        tsfn.Release();
+        listenerRunning.clear();
+        Napi::Error::New(env, "Failed to create sync event").ThrowAsJavaScriptException();
+        return env.Null();
+    }
     hHookThread = CreateThread(NULL, 0, HookThread, NULL, 0, &hookThreadId);
-
+    if (hHookThread == NULL)
+    {
+        tsfn.Release();
+        CloseHandle(hHookReady);
+        hHookReady = NULL;
+        listenerRunning.clear(); // release the guard so caller can retry
+        Napi::Error::New(env, "Failed to create hook thread").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    WaitForSingleObject(hHookReady, 2000);
+    CloseHandle(hHookReady);
+    hHookReady = NULL;
+    DWORD exitCode = 0;
+    GetExitCodeThread(hHookThread, &exitCode);
+    if (exitCode == 1)
+    {
+        WaitForSingleObject(hHookThread, 1000);
+        CloseHandle(hHookThread);
+        hHookThread = NULL;
+        hookThreadId = 0;
+        tsfn.Release();
+        listenerRunning.clear();
+        Napi::Error::New(env, "Failed to install mouse hook").ThrowAsJavaScriptException();
+        return env.Null();
+    }
     return Napi::Boolean::New(env, true);
 }
-
 
 Napi::Value StopMouseListener(const Napi::CallbackInfo &info)
 {
@@ -292,10 +366,13 @@ Napi::Value StopMouseListener(const Napi::CallbackInfo &info)
         return result;
     }
 
+    listenerStopping.store(true);
     // PostThreadMessage with WM_QUIT breaks the GetMessage loop in HookThread,
     // which then runs UnhookWindowsHookEx and exits
     if (!PostThreadMessage(hookThreadId, WM_QUIT, 0, 0))
     {
+        listenerStopping.store(false);
+        listenerRunning.clear();
         result.Set("success", false);
         result.Set("error", "Failed to signal hook thread");
         result.Set("errorCode", Napi::Number::New(env, GetLastError()));
@@ -306,8 +383,11 @@ Napi::Value StopMouseListener(const Napi::CallbackInfo &info)
     DWORD waitResult = WaitForSingleObject(hHookThread, 3000);
     if (waitResult != WAIT_OBJECT_0)
     {
-        // Thread didn't exit in time — force it and warn
+        // Thread didn't exit in time - kill it
         TerminateThread(hHookThread, 1);
+        // Best-effort: reduce chance a concurrent NonBlockingCall is still
+        // in-flight before tsfn.Release() below. Not a hard guarantee.
+        Sleep(50);
         result.Set("success", false);
         result.Set("error", "Hook thread did not exit cleanly, was forcefully terminated");
     }
@@ -322,6 +402,7 @@ Napi::Value StopMouseListener(const Napi::CallbackInfo &info)
     CloseHandle(hHookThread);
     hHookThread = NULL;
     hookThreadId = 0;
-
+    listenerRunning.clear();
+    listenerStopping.store(false);
     return result;
 }
